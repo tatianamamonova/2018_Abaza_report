@@ -1,0 +1,92 @@
+---
+bibliography: bibliography.bib
+editor_options:
+  chunk_output_type: console
+output:
+  word_document:
+    df_print: kable
+    fig_caption: yes
+    reference_docx: reference.docx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, comment = "", warning = FALSE, fig.width = 7)
+library(tidyverse)
+library(extrafont)
+theme_set(theme_bw()+theme(text = element_text(family = "Times New Roman", size = 12)))
+```
+
+# Осмысленное название этого текста
+
+Таня Мамонова, t_mamonovaa@outlook.com
+
+## Введение
+
+Здесь можно писать длинный текст. В работе [@stolz09: 20--34] описано то и то.
+
+```{r, fig.cap= "Рисунок 1. ..."}
+df <- read_tsv("data/single_stops.txt", col_names = FALSE)
+df <- df[,-c(1:2)]
+
+names(df) <- c("utterance", "file_name", "annotation", "duration_ms", "start", "end")
+
+df %>% 
+  mutate(word = str_extract(file_name, "_[AaА_Яа-я1I]*_"),
+         word = str_replace_all(word, "_", ""),
+         word = str_replace_all(word, "a", "а"),
+         word = str_replace_all(word, "A", "А")) ->
+  df
+
+
+df %>% 
+  mutate(vow_p = str_extract(word, "[ёуеыаоэяиюЁУЕЫАОЭЯИЮ]"),
+         vow_n = str_extract(stringi::stri_reverse(word), "[ёуеыаоэяиюЁУЕЫАОЭЯИЮ]"),
+         word = str_replace(word, "^у", "^w"),
+         cons_cyr = str_extract(word, "[ёуеыаоэяиюЁУЕЫАОЭЯИЮ].*[ёуеыаоэяиюЁУЕЫАОЭЯИЮ]"),
+         cons_cyr = str_replace_all(cons_cyr, "[ёуеыаоэяиюЁУЕЫАОЭЯИЮ]", "")) %>%
+  na.omit() %>% 
+  left_join(data_frame(cons_cyr = c("т", "б", "г", "д", "хъ", "къ", "п", "пI", "кIь", "тI", "гь", "кI", "кь"),
+           cons_ipa = c("t", "b", "ɡ", "d", "q", "q'", "p", "p'", "kʲ'", "t'", "gʲ", "k'", "kʲ"))) %>% 
+  left_join(data_frame(
+  cons_ipa = c("t", "b", "ɡ", "d", "q", "q'", "p", "p'", "kʲ'", "t'", "gʲ", "k'", "kʲ"),
+  poa = c("dental", "labial", "velar", "dental", "uvular", "uvular", "labial",  "labial",  "velar",  "dental",  "velar",  "velar",  "velar"),
+  phonation = c("voiceless", "voiced", "voiced", "voiced", "voiceless", "ejective", "voiceless", "ejective", "ejective", "ejective", "voiced", "ejective", "voiceless"),
+  articulation = c("plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "palatalised", "plain", "palatalised", "plain", "palatalised"))) %>% 
+    mutate(cons_ipa = factor(cons_ipa, levels = c("p", "p'", "b", "t", "t'", "d",  "k'", "ɡ", "k", "kʲ", "kʲ'", "gʲ",  "q", "q'")),
+           annotation = if_else(phonation == "voiced" & annotation == "vot", "", annotation),
+           annotation = if_else(phonation == "voiced" & annotation == "cd", "vot", annotation),
+           duration_ms = if_else(phonation == "voiced" & annotation == "vot", -duration_ms, duration_ms)) %>% 
+
+# ... это фиаско: гIхъ, ггIхъ, дгь, ддз, ркъ, тр, тртI
+  filter(!str_detect(cons_cyr, "гIхъ|ггIхъ|дгь|ддз|ркъ|тр|тртI"),
+         !str_detect(vow_p, "у|и|ы"),
+         !str_detect(vow_n, "у|и|ы")) ->
+  df
+
+df %>% 
+  mutate(stressed = str_extract(annotation, "[12]")) %>% 
+  filter(!is.na(stressed)) %>% 
+  select(word, stressed) %>% 
+  left_join(df)->
+  df
+
+df %>% 
+  distinct(word, cons_ipa, cons_cyr, poa) %>% 
+  count(cons_ipa, poa, sort = TRUE) %>% 
+  rbind(data_frame(cons_ipa = "k", poa = "velar", n = 0)) %>% 
+  ggplot(aes(cons_ipa, n, label = n, fill = poa)) +
+  geom_col()+
+  geom_text(aes(y = n + 1))+
+  labs(x = "", y = "")
+```
+
+```{r}
+df %>% 
+  distinct(word, vow_p, vow_n) %>% 
+  count(vow_p, vow_n)
+```
+
+
+
+### Bibliography
+
